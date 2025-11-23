@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Image Preference Experiment</title>
+<style>
+  body { font-family: Arial, sans-serif; text-align:center; margin:24px; }
+  #images { display:flex; justify-content:center; gap:24px; margin-top:20px; }
+  img.choice { width:420px; height:auto; cursor:pointer; border:4px solid transparent; }
+  img.choice:hover { border-color:#0077ff; }
+  #sample { margin-top:20px; max-width:90%; }
+</style>
+</head>
+<body>
+
+<h1>Image Preference Experiment</h1>
+<p>Participant ID (optional): <input id="personId" placeholder="leave blank to auto-generate"></p>
+<button id="startBtn">Start</button>
+
+<div id="status"></div>
+<div id="roundInfo" style="margin-top:14px;"></div>
+
+<div id="images" style="display:none;">
+  <img id="leftImg" class="choice">
+  <img id="rightImg" class="choice">
+</div>
+
+<h3>Example data table</h3>
+<img id="sample" src="/mnt/data/33c238f9-f239-46ed-a849-58ca6f278377.png" alt="sample table">
+
+<script>
+/* ===== CONFIG =====
+   Replace this with the Web App URL you get after deploying Apps Script */
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxGHpPOxgv_nfJRfOU6pKVK2Z84Q-hg0hFVH-jK3kHLYhC9ZAerfPu4hbPUt787WS-yjw/exec";
+
+/* ===== image folder list (from your repository) ===== */
+const IMAGE_FOLDERS = [
+ "240_F_1495559247_VpQnWjQ2yBNddXaEZoAQajIe5l3QNfdb",
+ "240_F_1572951858_BAhSWmCLU37vKPvD7IsRLkVLLNkfZdqC",
+ "240_F_235089049_1vbv6tn8pWC3y2nmKIywIR6W7S3oBqP2",
+ "240_F_279673798_itmQUSrwFy7mldM3eqyZ5McwhHaNSds0",
+ "240_F_328653000_o8mCR0KKwQCutreetYPnIbIw4nl0r5HV",
+ "240_F_366808660_BDp1Svh9iiqcDWHgBBOdaSxAZOlFYUSa",
+ "240_F_421064586_ek1DcxMff9ZuhFoxQh029nXNpYySKp3o",
+ "240_F_431196887_5BARfWTuGjM8qNweqAOebxDxXD9JHBgC",
+ "240_F_439313800_4vJE2elZ7TclY4FSlR8jeEBFvkxwMD3G",
+ "fall_trees",
+ "grocery_store"
+];
+
+/* mapping sim types -> filenames inside each folder */
+const TYPE_TO_FILENAME = {
+  "Original": "normal.png",
+  "B/W": "achromatopsia_sim.png", // or bw.png if you add true grayscale images
+  "protanopia": "protanopia_sim.png",
+  "deuteranopia": "deuteranopia_sim.png",
+  "tritanopia": "tritanopia_sim.png"
+};
+
+/* group → allowed comparisons */
+const GROUP_COMPARISONS = {
+  "I": (sim) => ({pos: "Original", neg: `CB-sim(${sim})`}),
+  "II": (sim) => ({pos: `CB-sim(${sim})`, neg: "B/W"})
+};
+
+/* helper functions */
+function randChoice(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a; }
+
+async function postToWebapp(obj){
+  const r = await fetch(WEB_APP_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(obj)
+  });
+  return r.json();
+}
+
+/* ===== experiment state ===== */
+let person = null;
+let session = { group: null, sim_type: null, folders: [], roundIndex: 0, current: null };
+
+/* START */
+document.getElementById("startBtn").onclick = async () => {
+  if (!WEB_APP_URL || WEB_APP_URL.includes("PASTE_YOUR")) {
+    alert("Please edit index.html and set WEB_APP_URL to your Apps Script web app URL.");
+    return;
+  }
+
+  const pid = document.getElementById("personId").value.trim();
+  person = pid ? pid : String(Math.floor(Math.random()*1000000));
+
+  // assign group weighted ≈60/140 -> P(I)=0.3
+  session.group = Math.random() < 0.3 ? "I" : "II";
+  session.sim_type = randChoice(["protanopia","deuteranopia","tritanopia"]);
+  session.folders = shuffle(IMAGE_FOLDERS.slice()).slice(0,10);
+  session.roundIndex = 0;
+
+  document.getElementById("status").innerText = `Participant: ${person} — Group: ${session.group} — SimType: ${session.sim_type}`;
+  document.getElementById("startBtn").style.display = "none";
+  document.getElementById("personId").style.display = "none";
+
+  nextRound();
+};
+
+function buildImagePath(folder, filename){
+  // relative path from index.html; adjust if you host differently
+  return `./static/images/save/${folder}/${filename}`;
+}
+
+function nextRound(){
+  if (session.roundIndex >= session.folders.length) {
+    finalize();
+    return;
+  }
+
+  const folder = session.folders[session.roundIndex];
+  const sim = session.sim_type;
+  const comp = GROUP_COMPARISONS[session.group](sim);
+  const posType = comp.pos;
+  const negType = comp.neg;
+
+  // pick filenames
+  const posFilename = posType === "Original" ? TYPE_TO_FILENAME["Original"] : TYPE_TO_FILENAME[sim];
+  const negFilename = negType === "B/W" ? TYPE_TO_FILENAME["B/W"] : TYPE_TO_FILENAME[sim];
+
+  // randomize left/right
+  const leftIsPositive = Math.random() < 0.5;
+  const leftFile = leftIsPositive ? posFilename : negFilename;
+  const rightFile = leftIsPositive ? negFilename : posFilename;
+
+  document.getElementById("leftImg").src = buildImagePath(folder, leftFile);
+  document.getElementById("rightImg").src = buildImagePath(folder, rightFile);
+  document.getElementById("roundInfo").innerText = `Round ${session.roundIndex+1} / ${session.folders.length}`;
+
+  session.current = {
+    folder: folder,           // used only locally
+    positive_type: posType,
+    negative_type: negType,
+    left_is_positive: leftIsPositive
+  };
+
+  document.getElementById("images").style.display = "flex";
+}
+
+/* handle clicks */
+document.getElementById("leftImg").onclick = () => recordClick(session.current.left_is_positive ? 1 : -1);
+document.getElementById("rightImg").onclick = () => recordClick(session.current.left_is_positive ? -1 : 1);
+
+async function recordClick(prefClass){
+  // send a save_round action to Apps Script
+  const payload = {
+    action: 'save_round',
+    Group: session.group,
+    Person: person,
+    SimType: session.sim_type,
+    ImageType_Positive: session.current.positive_type,
+    ImageType_Negative: session.current.negative_type,
+    PreferenceClass: prefClass
+  };
+  try {
+    await postToWebapp(payload);
+  } catch (e) {
+    console.error("post error", e);
+  }
+
+  session.roundIndex++;
+  nextRound();
+}
+
+async function finalize(){
+  document.getElementById("roundInfo").innerText = "Finalizing...";
+  const res = await postToWebapp({ action: 'finalize', Person: person });
+  if (res && res.score !== undefined) {
+    document.getElementById("roundInfo").innerText = `Done. Preference score = ${res.score}`;
+    document.getElementById("images").style.display = "none";
+    alert("Thank you! Your score: " + res.score);
+  } else {
+    document.getElementById("roundInfo").innerText = "Finalize failed: " + JSON.stringify(res);
+  }
+}
+</script>
+
+</body>
+</html>
