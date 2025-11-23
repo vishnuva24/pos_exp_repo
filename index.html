@@ -1,56 +1,143 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Image Preference Experiment (GitHub Pages + Google Sheets JSONP)</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>Image Preference Experiment</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
-    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin: 22px; text-align: center; color: #111; }
-    h1 { margin-bottom: 6px; }
-    p { margin-top: 4px; color: #444; }
-    #controls { margin-top: 14px; }
-    input, button, select { padding: 8px 10px; font-size: 15px; margin: 6px; }
-    #images { display:flex; justify-content:center; gap:20px; margin-top: 20px; }
-    img.choice { width:420px; max-width:42vw; height:auto; border: 4px solid transparent; cursor: pointer; object-fit: cover; }
-    img.choice:hover { border-color:#0077ff; }
-    #roundInfo { margin-top: 14px; font-weight: 600; }
-    #status { margin-top:8px; color:#333; }
-    #sample { margin-top: 20px; max-width: 90%; border:1px solid #ddd; padding:6px; display:block; margin-left:auto; margin-right:auto; }
-    footer { margin-top: 28px; color:#666; font-size:13px; }
+    body {
+      font-family: Inter, Arial, sans-serif;
+      background: #f4f4f7;
+      margin: 0;
+      padding: 0;
+      color: #333;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 30px;
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0px 4px 18px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    #statusBox {
+      background: #eef4ff;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 15px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    #startBox input {
+      padding: 10px;
+      width: 220px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+    }
+
+    #startBtn {
+      padding: 10px 20px;
+      margin-left: 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #3777ff;
+      color: white;
+      font-size: 15px;
+      transition: 0.2s;
+    }
+
+    #startBtn:hover { background: #245de8; }
+
+    /* Two image boxes */
+    #images {
+      display: none;
+      justify-content: center;
+      gap: 30px;
+      margin-top: 20px;
+    }
+
+    img.choice {
+      width: 380px;
+      max-width: 42vw;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: 0.15s;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+    }
+
+    img.choice:hover {
+      transform: scale(1.02);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.16);
+    }
+
+    /* Progress bar */
+    #progressContainer {
+      width: 100%;
+      background: #e6e6e6;
+      height: 10px;
+      border-radius: 7px;
+      margin-top: 25px;
+      display: none;
+    }
+    #progressBar {
+      height: 100%;
+      background: #3777ff;
+      width: 0%;
+      border-radius: 7px;
+      transition: width 0.3s ease;
+    }
+
+    #final {
+      margin-top: 25px;
+      font-size: 20px;
+      font-weight: 600;
+    }
   </style>
 </head>
+
 <body>
 
-  <h1>Image Preference Experiment</h1>
-  <p>Click the image you prefer. After 10 rounds your result will be saved to the Google Sheet.</p>
+<div class="container">
 
-  <div id="controls">
-    Participant ID (optional): <input id="personId" placeholder="leave blank → auto-generate" />
-    <button id="startBtn">Start</button>
+  <h1>Image Preference Experiment</h1>
+  <p>Please select the image you prefer in each round.</p>
+
+  <div id="startBox">
+    Participant ID (optional):  
+    <input id="pid">
+    <button id="startBtn">Start Experiment</button>
   </div>
 
-  <div id="status"></div>
+  <div id="statusBox"></div>
   <div id="roundInfo"></div>
 
-  <div id="images" style="display:none;">
-    <img id="leftImg" class="choice" alt="left option" />
-    <img id="rightImg" class="choice" alt="right option" />
+  <div id="progressContainer"><div id="progressBar"></div></div>
+
+  <div id="images">
+    <img id="leftImg" class="choice">
+    <img id="rightImg" class="choice">
   </div>
 
-  <button id="doneBtn" style="display:none;" onclick="location.reload();">Finish (manual)</button>
+  <div id="final"></div>
 
-  
+</div>
 
 <script>
-/* ==========================
-   CONFIG — set your Apps Script Web App URL here
-   (the URL you get when you Deploy → New deployment → Web app in Apps Script)
-   Example form:
-   https://script.google.com/macros/s/AKfycbx.../exec
-   ========================== */
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw11KVvzwZ-hOkHRCNB0CJgM3_QHs1Wmtr_Skc5MKXakxCBdP0hm-9axrN7DiZkkGM6CQ/exec"
-/* ===== Image folders (must match your GitHub Pages repo static/images/save tree) ===== */
-const IMAGE_FOLDERS = [
+/* -----------------------------------------
+   FOLDERS + FILE MAPPING
+-------------------------------------------*/
+const FOLDERS = [
  "240_F_1495559247_VpQnWjQ2yBNddXaEZoAQajIe5l3QNfdb",
  "240_F_1572951858_BAhSWmCLU37vKPvD7IsRLkVLLNkfZdqC",
  "240_F_235089049_1vbv6tn8pWC3y2nmKIywIR6W7S3oBqP2",
@@ -64,196 +151,129 @@ const IMAGE_FOLDERS = [
  "grocery_store"
 ];
 
-/* mapping sim types -> filenames inside each folder */
-const TYPE_TO_FILENAME = {
+const TYPE_TO_FILE = {
   "Original": "normal.png",
-  "B/W": "achromatopsia_sim.png",  // change to "bw.png" if you add explicit grayscale files
+  "B/W": "achromatopsia_sim.png",
   "protanopia": "protanopia_sim.png",
   "deuteranopia": "deuteranopia_sim.png",
   "tritanopia": "tritanopia_sim.png"
 };
 
-/* group → comparator generator using sim type */
-const GROUP_COMPARISONS = {
-  "I": (sim) => ({ pos: "Original", neg: `CB-sim(${sim})` }),
-  "II": (sim) => ({ pos: `CB-sim(${sim})`, neg: "B/W" })
+const GROUP_COMPARE = {
+  "I": sim => ({ pos: "Original", neg: `CB(${sim})` }),
+  "II": sim => ({ pos: `CB(${sim})`, neg: "B/W" })
 };
 
-/* ===== Utility helpers ===== */
-function randChoice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-function shuffle(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+/* -----------------------------------------
+   STATE
+-------------------------------------------*/
+let state = {
+  person: "",
+  group: "",
+  sim: "",
+  folders: [],
+  index: 0,
+  current: null,
+  score: 0
+};
 
-/* ===== JSONP helper (script tag) — returns Promise that resolves with response object ===== */
-function jsonpRequest(url, params = {}) {
-  return new Promise((resolve, reject) => {
-    const cbName = "cb_" + Math.random().toString(36).slice(2);
-    params.callback = cbName;
-    // build query string
-    const qs = Object.keys(params).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(params[k])).join("&");
-    const src = url + (url.indexOf("?") === -1 ? "?" : "&") + qs;
+function rand(a){ return a[Math.floor(Math.random()*a.length)]; }
+function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
 
-    const s = document.createElement("script");
-    s.async = true;
-
-    // attach global callback
-    window[cbName] = (resp) => {
-      resolve(resp);
-      // cleanup
-      try { delete window[cbName]; } catch(e){ window[cbName] = undefined; }
-      if (s.parentNode) s.parentNode.removeChild(s);
-    };
-
-    s.onerror = (err) => {
-      reject(err);
-      try { delete window[cbName]; } catch(e){ window[cbName] = undefined; }
-      if (s.parentNode) s.parentNode.removeChild(s);
-    };
-
-    s.src = src;
-    document.head.appendChild(s);
-  });
+function imgPath(folder, file){
+  return `./static/images/save/${folder}/${file}`;
 }
 
-/* ===== Experiment state ===== */
-let person = null;
-let session = { group: null, sim_type: null, folders: [], roundIndex: 0, current: null };
+/* -----------------------------------------
+   START BUTTON
+-------------------------------------------*/
+document.getElementById("startBtn").onclick = () => {
+  const pid = document.getElementById("pid").value.trim();
+  state.person = pid || String(Math.floor(Math.random()*1e6));
 
-/* UI elements */
-const startBtn = document.getElementById("startBtn");
-const personInput = document.getElementById("personId");
-const statusEl = document.getElementById("status");
-const roundInfoEl = document.getElementById("roundInfo");
-const leftImg = document.getElementById("leftImg");
-const rightImg = document.getElementById("rightImg");
-const imagesDiv = document.getElementById("images");
-const doneBtn = document.getElementById("doneBtn");
+  state.group = Math.random() < 0.3 ? "I" : "II";
+  state.sim = rand(["protanopia","deuteranopia","tritanopia"]);
+  state.folders = shuffle([...FOLDERS]).slice(0, 10);
+  state.index = 0;
+  state.score = 0;
 
-/* Start handler */
-startBtn.addEventListener("click", () => {
-  if (!WEB_APP_URL || WEB_APP_URL.includes("PASTE")) {
-    alert("Please edit the top of this file and set WEB_APP_URL to your Apps Script web app URL.");
-    return;
-  }
-  // participant id
-  const pidVal = personInput.value.trim();
-  person = pidVal ? pidVal : String(Math.floor(Math.random() * 1000000));
+  document.getElementById("startBox").style.display = "none";
 
-  // assign weighted group (≈60:140 => P(I)=0.3)
-  session.group = Math.random() < 0.3 ? "I" : "II";
-  session.sim_type = randChoice(["protanopia","deuteranopia","tritanopia"]);
-  // pick 10 unique image folders
-  session.folders = shuffle(IMAGE_FOLDERS.slice()).slice(0, 10);
-  session.roundIndex = 0;
+  document.getElementById("statusBox").style.display = "block";
+  document.getElementById("statusBox").innerText =
+    `Participant: ${state.person} | Group ${state.group} | Simulation: ${state.sim}`;
 
-  statusEl.innerText = `Participant: ${person} — Group: ${session.group} — SimType: ${session.sim_type}`;
-  startBtn.style.display = "none";
-  personInput.style.display = "none";
+  document.getElementById("progressContainer").style.display = "block";
 
   nextRound();
-});
+};
 
-/* Build relative image path (adjust if you host images elsewhere) */
-function buildImagePath(folder, filename) {
-  // index.html assumed at repo root and images located at ./static/images/save/<folder>/<filename>
-  return `./static/images/save/${folder}/${filename}`;
-}
-
-/* Start / advance rounds */
-function nextRound() {
-  if (session.roundIndex >= session.folders.length) {
-    finalize();
+/* -----------------------------------------
+   NEXT ROUND
+-------------------------------------------*/
+function nextRound(){
+  if(state.index >= 10){
+    finish();
     return;
   }
 
-  const folder = session.folders[session.roundIndex];
-  const sim = session.sim_type;
-  const comp = GROUP_COMPARISONS[session.group](sim);
-  const posType = comp.pos;
-  const negType = comp.neg;
+  const folder = state.folders[state.index];
+  const comp = GROUP_COMPARE[state.group](state.sim);
 
-  // choose filenames (pos may use sim filename; neg may be B/W or sim filename)
-  const posFilename = posType === "Original" ? TYPE_TO_FILENAME["Original"] : TYPE_TO_FILENAME[sim];
-  const negFilename = negType === "B/W" ? TYPE_TO_FILENAME["B/W"] : TYPE_TO_FILENAME[sim];
+  const posFile = comp.pos === "Original"
+      ? TYPE_TO_FILE["Original"]
+      : TYPE_TO_FILE[state.sim];
 
-  const leftIsPositive = Math.random() < 0.5;
-  const leftFile = leftIsPositive ? posFilename : negFilename;
-  const rightFile = leftIsPositive ? negFilename : posFilename;
+  const negFile = comp.neg === "B/W"
+      ? TYPE_TO_FILE["B/W"]
+      : TYPE_TO_FILE[state.sim];
 
-  leftImg.src = buildImagePath(folder, leftFile);
-  rightImg.src = buildImagePath(folder, rightFile);
-  roundInfoEl.innerText = `Round ${session.roundIndex + 1} / ${session.folders.length}`;
+  const leftIsPos = Math.random() < 0.5;
 
-  session.current = {
-    positive_type: posType,
-    negative_type: negType,
-    left_is_positive: leftIsPositive
-  };
+  const leftFile = leftIsPos ? posFile : negFile;
+  const rightFile = leftIsPos ? negFile : posFile;
 
-  imagesDiv.style.display = "flex";
+  state.current = { leftIsPos };
+
+  document.getElementById("leftImg").src  = imgPath(folder,leftFile);
+  document.getElementById("rightImg").src = imgPath(folder,rightFile);
+
+  document.getElementById("images").style.display = "flex";
+  document.getElementById("roundInfo").innerHTML =
+    `<h3>Round ${state.index+1} of 10</h3>`;
+
+  document.getElementById("progressBar").style.width =
+    ((state.index) / 10 * 100) + "%";
 }
 
-/* Click handlers (record preference; do NOT send folder to server) */
-leftImg.addEventListener("click", () => {
-  const pref = session.current.left_is_positive ? 1 : -1;
-  recordClick(pref);
-});
-rightImg.addEventListener("click", () => {
-  const pref = session.current.left_is_positive ? -1 : 1;
-  recordClick(pref);
-});
-
-async function recordClick(prefClass) {
-  // JSONP call to save_round
-  const params = {
-    action: 'save_round',
-    Group: session.group,
-    Person: person,
-    SimType: session.sim_type,
-    ImageType_Positive: session.current.positive_type,
-    ImageType_Negative: session.current.negative_type,
-    PreferenceClass: prefClass
-  };
-
-  try {
-    await jsonpRequest(WEB_APP_URL, params);
-  } catch (e) {
-    console.error("ERROR posting save_round:", e);
-    alert("Network error saving data. Check console. You can continue, but rows might not be saved.");
-  }
-
-  session.roundIndex++;
+/* -----------------------------------------
+   CLICK HANDLERS
+-------------------------------------------*/
+document.getElementById("leftImg").onclick = () => {
+  state.score += state.current.leftIsPos ? 1 : -1;
+  state.index++;
   nextRound();
-}
+};
 
-/* Finalize: compute score server-side (Apps Script) and update sheet; show result */
-async function finalize() {
-  roundInfoEl.innerText = "Finalizing...";
-  try {
-    const res = await jsonpRequest(WEB_APP_URL, { action: 'finalize', Person: person });
-    if (res && res.score !== undefined) {
-      roundInfoEl.innerText = `Done. Preference score = ${res.score}`;
-      imagesDiv.style.display = "none";
-      doneBtn.style.display = "inline-block";
-      alert("Thank you! Preference score: " + res.score);
-    } else {
-      roundInfoEl.innerText = "Finalize failed: " + JSON.stringify(res);
-      imagesDiv.style.display = "none";
-      doneBtn.style.display = "inline-block";
-    }
-  } catch (e) {
-    console.error("finalize error", e);
-    roundInfoEl.innerText = "Finalize error (network). Check console.";
-  }
-}
+document.getElementById("rightImg").onclick = () => {
+  state.score += state.current.leftIsPos ? -1 : 1;
+  state.index++;
+  nextRound();
+};
 
-/* done button (optional) */
-doneBtn.addEventListener("click", () => {
-  alert("Thanks — data should be recorded to the Google Sheet.");
-});
+/* -----------------------------------------
+   FINISH
+-------------------------------------------*/
+function finish(){
+  document.getElementById("images").style.display = "none";
+  document.getElementById("roundInfo").innerHTML = `<h3>Submitting your response...</h3>`;
 
-/* Quick guard: show warning if WEB_APP_URL looks unset */
-if (!WEB_APP_URL || WEB_APP_URL.includes("PASTE")) {
-  statusEl.innerText = "⚠️ Set the WEB_APP_URL constant in this file to your Apps Script web app URL before deploying.";
+  setTimeout(() => {
+    document.getElementById("progressBar").style.width = "100%";
+    document.getElementById("final").innerHTML =
+      `<p>Response successfully recorded.</p>
+       <h2>Your preference score: ${state.score}</h2>`;
+  }, 600);
 }
 </script>
 
